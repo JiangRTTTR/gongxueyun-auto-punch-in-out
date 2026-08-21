@@ -1,0 +1,6 @@
+aes_pkcs5==1.0.3
+numpy>=1.26.4,<2.3
+onnxruntime>=1.16.0,<1.21
+opencv_python_headless>=4.8.0,<4.11
+Pillow>=10.0.0,<12
+Requests>=2.31.0,<3

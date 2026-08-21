@@ -1,0 +1,35 @@
+[
+  {
+    "config": {
+      "user": {
+        "phone": "13800138000",
+        "password": "your_password"
+      },
+      "clockIn": {
+        "location": {
+          "address": "省份 · 城市 · 区县 · 详细地址附近",
+          "latitude": "30.000000",
+          "longitude": "120.000000",
+          "province": "省份",
+          "city": "城市",
+          "area": "区县"
+        },
+        "time": {
+          "start": "8:00",
+          "end": "17:00",
+          "float": 1
+        }
+      },
+      "smtp": {
+        "enable": true,
+        "host": "smtp.qq.com",
+        "port": 465,
+        "username": "your_email@qq.com",
+        "password": "your_smtp_auth_code",
+        "from": "工学云打卡通知",
+        "to": ["your_email@qq.com"]
+      },
+      "device": "{brand: Xiaomi, systemVersion: 14, Platform: Android, isPhysicalDevice: true, incremental: XXX}"
+    }
+  }
+]

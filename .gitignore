@@ -1,0 +1,30 @@
+# IDE / venv / cache
+.idea/
+.vscode/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+build/
+dist/
+*.spec
+
+# runtime / secrets（保留 config.example.json 作为模板）
+user/config.json
+user/config_backup.json
+user/userInfo.json
+user/planInfo.json
+!user/config.example.json
+main.log
+cron.log
+*.log
+
+# captcha debug
+snapshots/
+
+# leftovers
+pyarmor_runtime_*/
+pyarmor.bug.log
+*.bak
