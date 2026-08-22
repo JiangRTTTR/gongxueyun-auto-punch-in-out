@@ -69,6 +69,19 @@ class ApiService:
             logger.info(f"服务端返回详情: code={rsp.get('code')}, msg={msg}")
             raise ValueError(msg)
 
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else 0
+            # 4xx 客户端错误（除 429 限流）不重试
+            if 400 <= status < 500 and status != 429:
+                raise ValueError(str(e)) from e
+            if retry_count >= self.max_retries:
+                raise ValueError(str(e)) from e
+            wait_time = 1 * (2 ** retry_count)
+            logger.warning(
+                f"HTTP {status} 重试 {retry_count + 1}/{self.max_retries}，"
+                f"等待 {wait_time:.2f} 秒"
+            )
+            time.sleep(wait_time)
         except (requests.RequestException, ValueError) as e:
             # 含中文的业务错误（含 IP 频繁）不再盲目重试
             if re.search(r"[\u4e00-\u9fff]", str(e)) or retry_count >= self.max_retries:
@@ -115,7 +128,7 @@ class ApiService:
             time.sleep(random.uniform(1, 3))
         raise Exception("通过滑块验证码失败")
 
-    def solve_click_word_captcha(self, max_retries: int = 2) -> dict:
+    def solve_click_word_captcha(self, max_retries: int = 5) -> dict:
         retry_count = 0
         while retry_count < max_retries:
             captcha_request_payload = {
@@ -123,7 +136,7 @@ class ApiService:
                 "captchaType": "clickWord",
             }
             captcha_response = self._post_request(
-                "/attendence/clock/v1/get",
+                "attendence/clock/v1/get",
                 self._get_authenticated_headers(),
                 captcha_request_payload,
             )
@@ -131,6 +144,13 @@ class ApiService:
                 captcha_response["data"]["originalImageBase64"],
                 captcha_response["data"]["wordList"],
             )
+            if not captcha_solution:
+                logger.warning(
+                    f"OCR 未识别全部字符 (第{retry_count + 1}次)，换一张验证码..."
+                )
+                retry_count += 1
+                time.sleep(random.uniform(1, 3))
+                continue
             verification_payload = {
                 "pointJson": aes_encrypt(
                     captcha_solution,
@@ -142,7 +162,7 @@ class ApiService:
             }
             try:
                 verification_response = self._post_request(
-                    "/attendence/clock/v1/check",
+                    "attendence/clock/v1/check",
                     self._get_authenticated_headers(),
                     verification_payload,
                 )

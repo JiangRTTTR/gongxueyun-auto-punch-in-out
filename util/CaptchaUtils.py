@@ -861,7 +861,7 @@ def recognize_clickWord_captcha(target: str, wordlist: list) -> str:
         wordlist (list): 要识别的单词列表。
 
     Returns:
-        str: 单词列表中的单词的坐标的JSON字符串列表。
+        str | None: 点击坐标的 JSON 字符串；OCR 未识别全部字符时返回 None。
 
     引发：
         logger.warning: 在处理文本框时出错或未找到字符时。
@@ -889,21 +889,23 @@ def recognize_clickWord_captcha(target: str, wordlist: list) -> str:
     logger.info(f"需要点击: {wordlist}")
     logger.info(f"识别结果: {list(recognized_dict.keys())}")
 
-    # 根据wordlist的顺序找到对应的文本框，并生成随机坐标
-    random_coordinates = []
+    # 按 wordlist 顺序取检测框中心点作为点击坐标
+    click_coordinates = []
     for word in wordlist:
         bbox = recognized_dict.get(word)
         if bbox:
-            # 生成随机坐标
-            x = random.randint(bbox[0], bbox[2])
-            y = random.randint(bbox[1], bbox[3])
-            random_coordinates.append({"x": x, "y": y})
+            x = (bbox[0] + bbox[2]) // 2
+            y = (bbox[1] + bbox[3]) // 2
+            click_coordinates.append({"x": x, "y": y})
         else:
             logger.warning(f"未找到字符: {word}")
 
+    if len(click_coordinates) != len(wordlist):
+        return None
+
     # 保存快照（检测框 + 点击坐标）
     if ENABLE_SNAPSHOTS:
-        save_click_word_snapshot(image, bboxes, random_coordinates, wordlist,
+        save_click_word_snapshot(image, bboxes, click_coordinates, wordlist,
                                  recognized_dict, stage="predict")
 
-    return json.dumps(random_coordinates, separators=(",", ":"))
+    return json.dumps(click_coordinates, separators=(",", ":"))
