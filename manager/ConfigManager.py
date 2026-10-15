@@ -64,6 +64,10 @@ class ConfigManager:
         cls._current_user_index = index
 
     @classmethod
+    def get_current_user_index(cls) -> int:
+        return cls._current_user_index
+
+    @classmethod
     def get_current_user_config(cls) -> Optional[dict]:
         config_data = cls.load()
         if not config_data:

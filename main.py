@@ -6,14 +6,16 @@ import traceback
 from datetime import datetime, timezone, timedelta
 
 from manager.ConfigManager import ConfigManager
+from step.checkToday import check_today
 from step.clockIn import clock_in
 from step.fetchPlan import fetch_plan
 from step.login import login
 from manager.UserInfoManager import UserInfoManager
 from manager.PlanInfoManager import PlanInfoManager
-from util.EmailService import send_run_summary
+from util.EmailService import send_run_summary, send_daily_report
 from util.HelperFunctions import (
     get_checkin_types,
+    brief_error,
     desensitize_phone,
     desensitize_name,
     desensitize_address,
@@ -126,7 +128,7 @@ def execute_tasks_for_user(user_index: int) -> dict:
             "ok": all_ok,
         }
 
-    except Exception:
+    except Exception as e:
         logging.error(f"用户 {phone_masked} 执行打卡任务时发生异常")
         logging.error(traceback.format_exc())
         return {
@@ -135,7 +137,7 @@ def execute_tasks_for_user(user_index: int) -> dict:
             "name": "",
             "checkin_type": current_force_label(),
             "status": "失败",
-            "detail": "程序异常，详见日志",
+            "detail": f"程序异常: {brief_error(e)}",
             "location": "",
             "ok": False,
         }
@@ -176,6 +178,73 @@ def execute_tasks(no_wait: bool = False) -> int:
         return 1
 
 
+def execute_check_for_user(user_index: int) -> dict:
+    phone_masked = "***"
+    try:
+        ConfigManager.set_current_user(user_index)
+        UserInfoManager.set_current_user(user_index)
+        PlanInfoManager.set_current_user(user_index)
+
+        phone = ConfigManager.get("user", "phone") or "未知"
+        phone_masked = desensitize_phone(phone)
+        logging.info(f"========== 查询用户 {user_index + 1}: {phone_masked} ==========")
+
+        if not login():
+            return {
+                "index": user_index + 1,
+                "phone": phone_masked,
+                "name": "",
+                "records": {},
+                "error": "登录失败",
+            }
+        return check_today()
+    except Exception as e:
+        logging.error(f"用户 {phone_masked} 查询异常")
+        logging.error(traceback.format_exc())
+        return {
+            "index": user_index + 1,
+            "phone": phone_masked,
+            "name": "",
+            "records": {},
+            "error": f"程序异常: {brief_error(e)}",
+        }
+
+
+def execute_check(no_wait: bool = False) -> int:
+    """只读核对当天打卡情况并发每日一封日报，不提交任何打卡。"""
+    setup_logging()
+    try:
+        logging.info("开始执行打卡核对（只读）")
+        user_count = ConfigManager.get_user_count()
+        if user_count == 0:
+            logging.error("未找到任何用户配置")
+            _wait_exit(no_wait)
+            return 1
+
+        rows = []
+        for i in range(user_count):
+            if i > 0:
+                sleep_between_users()
+            rows.append(execute_check_for_user(i))
+
+        missing = [
+            r for r in rows
+            if r.get("error") or not (r.get("records") or {}).get("START")
+            or not (r.get("records") or {}).get("END")
+        ]
+        logging.info(
+            f"========== 核对完成: {len(rows) - len(missing)}/{len(rows)} 全部到位 =========="
+        )
+        send_daily_report(rows)
+        _wait_exit(no_wait)
+        return 1 if missing else 0
+    except Exception:
+        logging.error("执行打卡核对时发生异常")
+        logging.error(traceback.format_exc())
+        _wait_exit(no_wait)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="工学云自动打卡：每天上下班各跑一次，每次只打一张卡"
@@ -195,12 +264,19 @@ def main(argv: list[str] | None = None) -> int:
         choices=["START", "END", "HOLIDAY", "MORNING", "EVENING"],
         help="强制打卡类型：上班 START / 下班 END（推荐 cron 使用）",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="只读核对当天上下班记录并发每日一封日报，不提交打卡",
+    )
     args = parser.parse_args(argv)
     if args.force:
         os.environ["CHECKIN_FORCE"] = args.force
     if args.no_float:
         os.environ["NO_FLOAT"] = "1"
     no_wait = args.no_wait or os.environ.get("NO_WAIT") == "1"
+    if args.check:
+        return execute_check(no_wait=no_wait)
     return execute_tasks(no_wait=no_wait)
 
 

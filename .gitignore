@@ -11,12 +11,11 @@ build/
 dist/
 *.spec
 
-# runtime / secrets（保留 config.example.json 作为模板）
+# runtime / secrets
 user/config.json
 user/config_backup.json
 user/userInfo.json
 user/planInfo.json
-!user/config.example.json
 main.log
 cron.log
 *.log

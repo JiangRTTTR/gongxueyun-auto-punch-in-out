@@ -32,6 +32,12 @@ def get_current_month_info() -> dict:
     }
 
 
+def brief_error(e: BaseException, limit: int = 100) -> str:
+    """压成单行并截断，用于写进日志和告警邮件。"""
+    text = " ".join(str(e).split())
+    return text[:limit] if text else e.__class__.__name__
+
+
 def desensitize_name(name: str | None) -> str:
     if not name:
         return "***"
